@@ -5,9 +5,9 @@ import folium
 from streamlit_folium import st_folium
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
-st.set_page_config(page_title="VRP Stable App", layout="wide")
+st.set_page_config(page_title="Enterprise VRP", layout="wide")
 
-st.title("🚚 VRP Solver (Stable + Map)")
+st.title("🚚 Enterprise Logistics Dashboard")
 
 # -----------------------------
 # SESSION STATE
@@ -22,9 +22,18 @@ uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
 col1, col2 = st.columns(2)
 with col1:
-    num_vehicles = st.number_input("Vehicles", min_value=1, value=2)
+    num_vehicles = st.number_input("🚚 Vehicles", min_value=1, value=2)
 with col2:
-    vehicle_capacity = st.number_input("Capacity", min_value=1, value=40)
+    vehicle_capacity = st.number_input("📦 Capacity", min_value=1, value=40)
+
+# financial inputs
+col3, col4, col5 = st.columns(3)
+with col3:
+    fuel_cost_per_km = st.number_input("⛽ Fuel Cost/KM", value=50.0)
+with col4:
+    revenue_per_unit = st.number_input("💰 Revenue per Unit", value=200.0)
+with col5:
+    penalty_per_km = st.number_input("⏱️ Penalty per Extra KM", value=5.0)
 
 # -----------------------------
 # DISTANCE
@@ -40,6 +49,14 @@ def haversine(c1, c2):
 
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+
+def route_distance(route, df):
+    total = 0
+    for i in range(len(route)-1):
+        lat1, lon1 = df.iloc[route[i]][['Latitude','Longitude']]
+        lat2, lon2 = df.iloc[route[i+1]][['Latitude','Longitude']]
+        total += haversine((lat1, lon1), (lat2, lon2))
+    return total
 
 # -----------------------------
 # SOLVER
@@ -123,7 +140,6 @@ if uploaded_file:
         st.write("Total Capacity:", total_capacity)
 
         if st.button("🚀 Solve"):
-
             if total_demand > total_capacity:
                 st.error("❌ Not feasible: demand > capacity")
                 st.session_state.routes = None
@@ -140,10 +156,38 @@ if uploaded_file:
 
             st.success("✅ Solution Found")
 
+            total_distance = 0
+            total_penalty = 0
+
             for i,(route,load) in enumerate(st.session_state.routes):
+
+                dist = route_distance(route, df)
+                total_distance += dist
+
+                penalty = max(0, dist - 20) * penalty_per_km
+                total_penalty += penalty
+
                 st.write(f"### 🚚 Vehicle {i+1}")
                 st.write("Route:", route)
                 st.write("Load:", load)
+                st.write(f"Distance: {round(dist,2)} km")
+                st.write(f"Penalty: {round(penalty,2)}")
+
+            # -----------------------------
+            # FINANCIAL SUMMARY
+            # -----------------------------
+            total_cost = total_distance * fuel_cost_per_km
+            total_revenue = total_demand * revenue_per_unit
+            profit = total_revenue - total_cost - total_penalty
+
+            st.markdown("---")
+            st.subheader("💰 Financial Summary")
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Revenue", round(total_revenue,2))
+            c2.metric("Cost", round(total_cost,2))
+            c3.metric("Penalty", round(total_penalty,2))
+            c4.metric("Profit", round(profit,2))
 
             # -----------------------------
             # MAP
@@ -171,7 +215,7 @@ if uploaded_file:
 
                 folium.PolyLine(coords, color=colors[i % len(colors)], weight=5).add_to(m)
 
-            st_folium(m, width=800, height=500)
+            st_folium(m, width=900, height=500)
 
         else:
             st.info("Click Solve to run optimization")
