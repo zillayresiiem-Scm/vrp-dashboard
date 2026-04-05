@@ -2,12 +2,18 @@ import streamlit as st
 import pandas as pd
 import math
 import folium
+import matplotlib.pyplot as plt
 from streamlit_folium import st_folium
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
+# -----------------------------
+# CONFIG
+# -----------------------------
 st.set_page_config(page_title="Enterprise VRP", layout="wide")
 
-st.title("🚚 Enterprise Logistics Dashboard")
+st.markdown("## 🚚 Enterprise Logistics Optimization System")
+st.caption("Route Optimization | Cost | Profit | Analytics Dashboard")
+st.markdown("---")
 
 # -----------------------------
 # SESSION STATE
@@ -26,7 +32,6 @@ with col1:
 with col2:
     vehicle_capacity = st.number_input("📦 Capacity", min_value=1, value=40)
 
-# financial inputs
 col3, col4, col5 = st.columns(3)
 with col3:
     fuel_cost_per_km = st.number_input("⛽ Fuel Cost/KM", value=50.0)
@@ -158,6 +163,7 @@ if uploaded_file:
 
             total_distance = 0
             total_penalty = 0
+            report_data = []
 
             for i,(route,load) in enumerate(st.session_state.routes):
 
@@ -172,6 +178,14 @@ if uploaded_file:
                 st.write("Load:", load)
                 st.write(f"Distance: {round(dist,2)} km")
                 st.write(f"Penalty: {round(penalty,2)}")
+
+                report_data.append({
+                    "Vehicle": i+1,
+                    "Route": str(route),
+                    "Load": load,
+                    "Distance": round(dist,2),
+                    "Penalty": round(penalty,2)
+                })
 
             # -----------------------------
             # FINANCIAL SUMMARY
@@ -188,6 +202,21 @@ if uploaded_file:
             c2.metric("Cost", round(total_cost,2))
             c3.metric("Penalty", round(total_penalty,2))
             c4.metric("Profit", round(profit,2))
+
+            # -----------------------------
+            # CHART
+            # -----------------------------
+            st.subheader("📊 Distance per Vehicle")
+
+            vehicle_ids = [f"V{i+1}" for i in range(len(report_data))]
+            distances = [r["Distance"] for r in report_data]
+
+            fig, ax = plt.subplots()
+            ax.bar(vehicle_ids, distances)
+            ax.set_ylabel("Distance (km)")
+            ax.set_title("Vehicle Distance")
+
+            st.pyplot(fig)
 
             # -----------------------------
             # MAP
@@ -216,6 +245,20 @@ if uploaded_file:
                 folium.PolyLine(coords, color=colors[i % len(colors)], weight=5).add_to(m)
 
             st_folium(m, width=900, height=500)
+
+            # -----------------------------
+            # DOWNLOAD REPORT
+            # -----------------------------
+            st.subheader("📥 Download Report")
+
+            report_df = pd.DataFrame(report_data)
+
+            st.download_button(
+                "⬇️ Download CSV Report",
+                report_df.to_csv(index=False),
+                "vrp_report.csv",
+                "text/csv"
+            )
 
         else:
             st.info("Click Solve to run optimization")
