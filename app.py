@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
 import math
+import folium
+from streamlit_folium import st_folium
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
 st.set_page_config(page_title="VRP Stable App", layout="wide")
 
-st.title("🚚 VRP Solver (Stable Version)")
+st.title("🚚 VRP Solver (Stable + Map)")
 
 # -----------------------------
 # SESSION STATE
@@ -46,10 +48,8 @@ def solve_vrp(df):
 
     locations = list(zip(df['Latitude'], df['Longitude']))
     demands = df['Demand'].tolist()
-
     n = len(locations)
 
-    # distance matrix
     dist = [[0]*n for _ in range(n)]
     for i in range(n):
         for j in range(n):
@@ -109,10 +109,9 @@ if uploaded_file:
 
     df = pd.read_csv(uploaded_file)
 
-    st.subheader("Data")
+    st.subheader("📊 Data")
     st.dataframe(df)
 
-    # safety check
     if not all(col in df.columns for col in ["Latitude","Longitude","Demand"]):
         st.error("CSV must contain Latitude, Longitude, Demand")
     else:
@@ -134,19 +133,48 @@ if uploaded_file:
         if st.button("🔄 Reset"):
             st.session_state.routes = None
 
-        # display results
+        # -----------------------------
+        # RESULTS
+        # -----------------------------
         if st.session_state.routes:
 
             st.success("✅ Solution Found")
 
             for i,(route,load) in enumerate(st.session_state.routes):
-                st.write(f"Vehicle {i+1}")
+                st.write(f"### 🚚 Vehicle {i+1}")
                 st.write("Route:", route)
                 st.write("Load:", load)
 
-        elif st.session_state.routes is None:
+            # -----------------------------
+            # MAP
+            # -----------------------------
+            st.subheader("🗺️ Route Map")
+
+            center = [df['Latitude'].mean(), df['Longitude'].mean()]
+            m = folium.Map(location=center, zoom_start=12)
+
+            colors = ["red", "blue", "green", "purple", "orange"]
+
+            for i,(route,_) in enumerate(st.session_state.routes):
+                coords = []
+
+                for node in route:
+                    lat = df.iloc[node]['Latitude']
+                    lon = df.iloc[node]['Longitude']
+                    coords.append((lat, lon))
+
+                    folium.Marker(
+                        [lat, lon],
+                        popup=f"Node {node}",
+                        icon=folium.Icon(color=colors[i % len(colors)])
+                    ).add_to(m)
+
+                folium.PolyLine(coords, color=colors[i % len(colors)], weight=5).add_to(m)
+
+            st_folium(m, width=800, height=500)
+
+        else:
             st.info("Click Solve to run optimization")
 
 else:
     st.info("Upload CSV to start")
-
