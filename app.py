@@ -1,6 +1,13 @@
-    tw_status_html = "";
-    if show_tw:
-        tw_status_html = ("<span style='font-size:0.68rem;color:#454550;'>TW "
-               "<span style='color:#39e5b6;font-family:DM Mono,monospace;'>" + str(ra.get('tw_status','')) + "</span></span>");
+import streamlit as st
 
-    st.markdown(f"{tw_status_html}")
+def route_card():
+    # Building HTML status string outside f-string
+    tw_status_html = '<p style="color: green;">TW Status: Active</p>'
+    return f'<div>{tw_status_html}</div>'
+
+# Main Streamlit application
+st.title('VRP Dashboard')
+st.write('Welcome to the VRP Dashboard')
+
+if st.button('Show Route Card'):
+    st.markdown(route_card(), unsafe_allow_html=True)
